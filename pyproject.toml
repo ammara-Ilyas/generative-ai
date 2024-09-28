@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "genai-python"
+version = "0.1.0"
+description = ""
+authors = ["CodeCrafter-1 <ammara@officiallabs.co>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+langchain-core = "^0.3.5"
+langchain-community = "^0.3.0"
+langchain-openai = "^0.2.0"
+python-dotenv = "^1.0.1"
+langchain-google-genai = "^2.0.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
