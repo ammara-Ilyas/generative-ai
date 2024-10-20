@@ -12,6 +12,12 @@ langchain-community = "^0.3.0"
 langchain-openai = "^0.2.0"
 python-dotenv = "^1.0.1"
 langchain-google-genai = "^2.0.0"
+pypdf = "^5.0.1"
+fastapi = "^0.115.2"
+faiss-cpu = "^1.9.0"
+uvicorn = "^0.32.0"
+pypdf2 = "^3.0.1"
+python-multipart = "^0.0.13"
 
 
 [build-system]

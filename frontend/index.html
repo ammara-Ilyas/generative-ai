@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat with PDF using Gemini💁</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>Chat with PDF using Gemini💁</h1>
+    </header>
+
+    <main>
+        <section class="input-section">
+            <label for="userQuestion">Ask a Question from the PDF Files:</label>
+            <input type="text" id="userQuestion" placeholder="Type your question...">
+            <button id="askBtn">Ask</button>
+        </section>
+
+        <section class="sidebar">
+            <h2>Menu:</h2>
+            <label for="pdfFiles">Upload your PDF Files and Click on the Submit & Process Button:</label>
+            <input type="file" id="pdfFiles" accept=".pdf" multiple>
+            <button id="submitBtn">Submit & Process</button>
+            <div id="statusMessage"></div>
+        </section>
+
+        <section class="response-section">
+            <h2>Response:</h2>
+            <div id="response"></div>
+        </section>
+    </main>
+
+    <script src="scripts.js"></script>
+</body>
+</html>
