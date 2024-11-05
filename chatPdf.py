@@ -16,14 +16,18 @@ genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
 llm = ChatGoogleGenerativeAI(
     model="gemini-1.5-flash", google_api_key=os.getenv("GOOGLE_API_KEY"))
+# make first make pages chunk and then chunk of every page
 
 
 def get_pdf_text(pdf_docs):
     text = ""
     for pdf in pdf_docs:
+        print("pdf", pdf)
         pdf_reader = PdfReader(pdf)
+        print("pages length", len(pdf_reader.pages))
         for page in pdf_reader.pages:
             text += page.extract_text()
+    # print("text", text)
     return text
 
 
@@ -31,6 +35,7 @@ def get_text_chunks(text):
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=10000, chunk_overlap=1000)
     chunks = text_splitter.split_text(text)
+    print("chunk", chunks)
     return chunks
 
 
@@ -40,7 +45,9 @@ def get_vector_store(text_chunks):
 
     # Create embeddings from text chunks
     embedded_texts = embeddings.embed_documents(text_chunks)
-    vector_store = FAISS.from_texts(text_chunks, embeddings)
+    vector_store = FAISS.from_documents(text_chunks, embedded_texts)
+    # vector_store = FAISS.from_documents(split_docs, embeddings)
+
    # Save the FAISS index to disk using FAISS's native method
     vector_store.save_local("data/faiss.txt")
     print("FAISS vector store created and saved.")
@@ -70,21 +77,22 @@ def get_conversational_chain():
 
 
 def user_input(user_question):
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-    # Load the stored Chroma DB
+    # embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    # # Load the stored Chroma DB
 
-    # Load the stored FAISS index from disk using FAISS's native method
-    vector_store = FAISS.load_local(
-        "data/faiss.txt", embeddings, allow_dangerous_deserialization=True)
+    # # Load the stored FAISS index from disk using FAISS's native method
+    # vector_store = FAISS.load_local(
+    #     "data/faiss.txt", embeddings, allow_dangerous_deserialization=True)
 
-    # Use retriever to get relevant documents
+    # # Use retriever to get relevant documents
+    db = get_vector_store()
     retriever = vector_store.as_retriever()
     docs = retriever.get_relevant_documents(user_question)
     # Get the conversational chain
-    chain = get_conversational_chain()
+    # chain = get_conversational_chain()
 
     # Get the response from the chain
-    response = chain.run({"context": docs, "question": user_question})
+    # response = chain.run({"context": docs, "question": user_question})
 
     print(response)
     st.write("Reply: ", response)
@@ -110,8 +118,10 @@ def main():
             with st.spinner("Processing..."):
                 raw_text = get_pdf_text(pdf_docs)
                 text_chunks = get_text_chunks(raw_text)
-                get_vector_store(text_chunks)  # Store the chunks in Chroma
+                get_vector_store(text_chunks)
+
                 st.success("Done")
+                st.text(raw_text)
 
 
 if __name__ == "__main__":

@@ -1,14 +1,14 @@
 from fastapi import FastAPI, File, UploadFile
 from PyPDF2 import PdfReader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-# from langchain.text_splitter import CharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 import google.generativeai as genai
-from langchain.vectorstores import FAISS
+from langchain_community.vectorstores import FAISS
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.chains.question_answering import load_qa_chain
-from langchain.prompts import PromptTemplate
+from langchain.chains import ConversationalRetrievalChain
+from langchain.prompts import ChatPromptTemplate
 from dotenv import load_dotenv
+import python_multipart
 import os
 import uvicorn
 
@@ -18,8 +18,11 @@ app = FastAPI()
 # Google API key setup
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
+# Set up LLM using Google Generative AI
 llm = ChatGoogleGenerativeAI(
     model="gemini-1.5-flash", google_api_key=os.getenv("GOOGLE_API_KEY"))
+
+# Define a function to extract text from PDF files
 
 
 def get_pdf_text(pdf_files):
@@ -30,6 +33,8 @@ def get_pdf_text(pdf_files):
             text += page.extract_text()
     return text
 
+# Split text into manageable chunks
+
 
 def get_text_chunks(text):
     text_splitter = RecursiveCharacterTextSplitter(
@@ -37,12 +42,8 @@ def get_text_chunks(text):
     chunks = text_splitter.split_text(text)
     return chunks
 
+# Create or load a FAISS vector store with Google embeddings
 
-# def get_vector_store(text_chunks):
-#     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-#     vector_store = FAISS.from_texts(text_chunks, embedding=embeddings)
-#     vector_store = FAISS.load_local(
-#     "faiss_index", embeddings, allow_dangerous_deserialization=True)
 
 def get_vector_store(text_chunks):
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
@@ -52,25 +53,11 @@ def get_vector_store(text_chunks):
     else:
         vector_store = FAISS.load_local(
             "faiss_index", embeddings, allow_dangerous_deserialization=True)
-        index = index_creator.from_loaders({loader})
-
     return vector_store
 
 
-def get_conversational_chain():
-    prompt_template = """
-    Answer the question as detailed as possible from the provided context. If the answer is not in the provided context,
-    say "Answer is not available in the context."\n\n
-    Context:\n{context}?\n
-    Question:\n{question}\n
-    Answer:
-    """
-
-    llm = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
-    prompt = PromptTemplate(template=prompt_template,
-                            input_variables=["context", "question"])
-    chain = load_qa_chain(llm, chain_type="stuff", prompt=prompt)
-    return chain
+# A dictionary to store session histories
+session_histories = {}
 
 
 @app.post("/process-pdf/")
@@ -82,28 +69,42 @@ async def process_pdf(files: list[UploadFile]):
 
 
 @app.post("/ask-question/")
-async def ask_question(user_question: str):
+async def ask_question(user_question: str, session_id: str):
+    # Load FAISS index
     embeddings = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-
-    # Load the FAISS index
     vector_store = FAISS.load_local(
         "faiss_index", embeddings, allow_dangerous_deserialization=True)
+    retriever = vector_store.as_retriever()
 
-    # Perform similarity search to retrieve relevant documents
-    docs = vector_store.similarity_search(user_question)
+    # Initialize conversational chain
+    qa_prompt = ChatPromptTemplate.from_template("{input}")
+    conversational_rag_chain = ConversationalRetrievalChain(
+        llm=llm,
+        retriever=retriever,
+        combine_docs_chain=qa_prompt,
+        return_source_documents=True
+    )
 
-    # Initialize your LLM (Google Generative AI in this case)
-    llm = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
+    # Retrieve session-specific chat history
+    chat_history = session_histories.get(session_id, [])
 
-    # Load the QA chain with the LLM
-    chain = load_qa_chain(llm, chain_type="stuff")
+    # Run the retrieval-augmented generation chain
+    response = conversational_rag_chain.invoke({
+        "input": user_question,
+        "chat_history": chat_history
+    })
 
-    # Use the chain to generate an answer based on the retrieved documents and user question
-    response = chain(
-        {"input_documents": docs, "question": user_question}, return_only_outputs=True)
+    # Extract answer and source documents
+    answer = response["answer"]
+    source_docs = response.get("source_documents", [])
 
+    # Update session history with the new question and answer
+    chat_history.append({"user": user_question, "assistant": answer})
+    session_histories[session_id] = chat_history
+    print("history", chat_history)
     # Return the generated answer
-    return {"answer": response["output_text"]}
+    return {"answer": answer, "sources": [doc["text"] for doc in source_docs]}
 
+# Uncomment to run FastAPI app
 # if __name__ == "__main__":
 #     uvicorn.run(app, host="0.0.0.0", port=8000)
